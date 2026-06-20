@@ -2,6 +2,7 @@
 import { useCanBusStore } from './store/canbus';
 import FrameTable from './components/FrameTable.vue';
 import SignalChart from './components/SignalChart.vue';
+import BookmarkPanel from './components/BookmarkPanel.vue';
 
 const store = useCanBusStore();
 
@@ -19,6 +20,16 @@ function handleExport() {
   a.download = `can_frames_${Date.now()}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function handleQuickBookmark() {
+  if (store.frames.length === 0) {
+    alert('暂无帧数据可标记');
+    return;
+  }
+  const lastFrame = store.frames[store.frames.length - 1];
+  const note = prompt('输入书签备注（可选）：', '关键时刻');
+  store.addBookmark(lastFrame.id, note ?? '');
 }
 </script>
 
@@ -52,6 +63,16 @@ function handleExport() {
           {{ store.isCapturing ? '停止捕获' : '开始捕获' }}
         </button>
         <button
+          v-if="store.isCapturing || store.frames.length > 0"
+          @click="handleQuickBookmark"
+          class="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-white text-sm rounded transition-colors font-medium flex items-center gap-1"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+          </svg>
+          标记此刻
+        </button>
+        <button
           @click="store.clearFrames()"
           class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded transition-colors border border-gray-600"
         >
@@ -73,9 +94,14 @@ function handleExport() {
         <FrameTable />
       </div>
 
-      <!-- Right Panel: Signal Chart (40%) -->
+      <!-- Right Panel: Chart + Bookmarks (40%) -->
       <div class="w-2/5 flex flex-col overflow-hidden">
-        <SignalChart />
+        <div class="flex-1 min-h-0 border-b border-gray-700">
+          <SignalChart />
+        </div>
+        <div class="h-64 shrink-0">
+          <BookmarkPanel />
+        </div>
       </div>
     </main>
 
@@ -88,6 +114,7 @@ function handleExport() {
           </span>
         </span>
         <span>DBC消息: {{ store.dbcMessages.size }}</span>
+        <span class="text-yellow-500">书签: {{ store.bookmarks.length }}</span>
       </div>
       <div class="flex items-center gap-4 text-gray-500">
         <span>帧数: {{ store.busStats.totalFrames }}</span>

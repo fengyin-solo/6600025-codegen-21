@@ -57,6 +57,18 @@ function getSignalUnit(name: string): string {
   };
   return units[name] || '';
 }
+
+function toggleBookmark(frameId: string, event: Event) {
+  event.stopPropagation();
+  if (store.hasBookmark(frameId)) {
+    const bm = store.getBookmarkByFrameId(frameId);
+    if (bm) {
+      store.removeBookmark(bm.id);
+    }
+  } else {
+    store.addBookmark(frameId);
+  }
+}
 </script>
 
 <template>
@@ -96,6 +108,7 @@ function getSignalUnit(name: string): string {
       <table class="w-full text-sm font-mono">
         <thead class="sticky top-0 bg-gray-800 z-10">
           <tr class="text-gray-400 text-left">
+            <th class="px-3 py-2 font-medium w-8">书签</th>
             <th class="px-3 py-2 font-medium">时间戳</th>
             <th class="px-3 py-2 font-medium w-12">方向</th>
             <th class="px-3 py-2 font-medium w-20">CAN ID</th>
@@ -113,9 +126,35 @@ function getSignalUnit(name: string): string {
             :class="[
               selectedFrameId === frame.id
                 ? 'bg-cyan-900/30 border-l-2 border-l-cyan-500'
-                : 'hover:bg-gray-800/50'
+                : 'hover:bg-gray-800/50',
+              store.hasBookmark(frame.id) ? 'bg-yellow-900/10' : ''
             ]"
           >
+            <td class="px-3 py-1.5">
+              <button
+                @click="toggleBookmark(frame.id, $event)"
+                class="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-700 transition-colors"
+                :title="store.hasBookmark(frame.id) ? '取消书签' : '添加书签'"
+              >
+                <svg
+                  v-if="store.hasBookmark(frame.id)"
+                  class="w-4 h-4"
+                  :style="{ color: store.getBookmarkByFrameId(frame.id)?.color || '#eab308', fill: 'currentColor' }"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+                </svg>
+                <svg
+                  v-else
+                  class="w-4 h-4 text-gray-600 hover:text-yellow-400 transition-colors"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+              </button>
+            </td>
             <td class="px-3 py-1.5 text-gray-300 whitespace-nowrap">{{ formatTimestamp(frame.timestamp) }}</td>
             <td class="px-3 py-1.5">
               <span
@@ -136,7 +175,7 @@ function getSignalUnit(name: string): string {
             </td>
           </tr>
           <tr v-if="store.filteredFrames.length === 0">
-            <td colspan="6" class="px-3 py-8 text-center text-gray-500">
+            <td colspan="7" class="px-3 py-8 text-center text-gray-500">
               暂无数据 — 点击"开始捕获"以模拟接收CAN帧
             </td>
           </tr>

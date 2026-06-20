@@ -36,3 +36,12 @@ export interface BusStats {
   busLoad: number;
   lastUpdate: number;
 }
+
+export interface FrameBookmark {
+  id: string;
+  frameId: string;
+  timestamp: number;
+  note: string;
+  createdAt: number;
+  color: string;
+}

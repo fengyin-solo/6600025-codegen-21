@@ -1,9 +1,12 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { CanFrame, DbcMessage, BusStats } from '../types';
+import type { CanFrame, DbcMessage, BusStats, FrameBookmark } from '../types';
 import { parseDbc, decodeCanFrame, DEFAULT_DBC_CONTENT } from '../utils/dbc-parser';
 
 let frameIdCounter = 0;
+let bookmarkIdCounter = 0;
+
+const BOOKMARK_COLORS = ['#ef4444', '#f59e0b', '#22c55e', '#06b6d4', '#8b5cf6', '#ec4899'];
 
 export const useCanBusStore = defineStore('canbus', () => {
   const frames = ref<CanFrame[]>([]);
@@ -13,6 +16,8 @@ export const useCanBusStore = defineStore('canbus', () => {
   const filterText = ref('');
   const isCapturing = ref(false);
   const pollInterval = ref<number | null>(null);
+  const bookmarks = ref<FrameBookmark[]>([]);
+  const focusedTimestamp = ref<number | null>(null);
 
   const busStats = ref<BusStats>({
     totalFrames: 0,
@@ -87,6 +92,8 @@ export const useCanBusStore = defineStore('canbus', () => {
   function clearFrames() {
     frames.value = [];
     signals.value = new Map();
+    bookmarks.value = [];
+    focusedTimestamp.value = null;
     busStats.value = {
       totalFrames: 0,
       rxCount: 0,
@@ -96,6 +103,62 @@ export const useCanBusStore = defineStore('canbus', () => {
       lastUpdate: Date.now()
     };
     frameIdCounter = 0;
+    bookmarkIdCounter = 0;
+  }
+
+  function addBookmark(frameId: string, note: string = ''): FrameBookmark | null {
+    const frame = frames.value.find(f => f.id === frameId);
+    if (!frame) return null;
+    const existing = bookmarks.value.find(b => b.frameId === frameId);
+    if (existing) return existing;
+    const color = BOOKMARK_COLORS[bookmarks.value.length % BOOKMARK_COLORS.length];
+    const bookmark: FrameBookmark = {
+      id: `bookmark-${++bookmarkIdCounter}`,
+      frameId,
+      timestamp: frame.timestamp,
+      note,
+      createdAt: Date.now(),
+      color
+    };
+    bookmarks.value.push(bookmark);
+    bookmarks.value.sort((a, b) => a.timestamp - b.timestamp);
+    return bookmark;
+  }
+
+  function removeBookmark(bookmarkId: string) {
+    const idx = bookmarks.value.findIndex(b => b.id === bookmarkId);
+    if (idx !== -1) {
+      bookmarks.value.splice(idx, 1);
+    }
+  }
+
+  function updateBookmarkNote(bookmarkId: string, note: string) {
+    const bookmark = bookmarks.value.find(b => b.id === bookmarkId);
+    if (bookmark) {
+      bookmark.note = note;
+    }
+  }
+
+  function jumpToBookmark(bookmarkId: string) {
+    const bookmark = bookmarks.value.find(b => b.id === bookmarkId);
+    if (bookmark) {
+      focusedTimestamp.value = bookmark.timestamp;
+      setTimeout(() => {
+        focusedTimestamp.value = null;
+      }, 2000);
+    }
+  }
+
+  function hasBookmark(frameId: string): boolean {
+    return bookmarks.value.some(b => b.frameId === frameId);
+  }
+
+  function getBookmarkByFrameId(frameId: string): FrameBookmark | undefined {
+    return bookmarks.value.find(b => b.frameId === frameId);
+  }
+
+  function clearFocus() {
+    focusedTimestamp.value = null;
   }
 
   function loadMockDbc() {
@@ -204,6 +267,8 @@ export const useCanBusStore = defineStore('canbus', () => {
     filterText,
     busStats,
     isCapturing,
+    bookmarks,
+    focusedTimestamp,
     filteredFrames,
     busLoadPercent,
     addFrame,
@@ -213,6 +278,13 @@ export const useCanBusStore = defineStore('canbus', () => {
     startCapture,
     stopCapture,
     decodeFrame,
-    exportFrames
+    exportFrames,
+    addBookmark,
+    removeBookmark,
+    updateBookmarkNote,
+    jumpToBookmark,
+    hasBookmark,
+    getBookmarkByFrameId,
+    clearFocus
   };
 });
