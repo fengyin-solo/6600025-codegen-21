@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { CanFrame, DbcMessage, BusStats, FrameBookmark } from '../types';
 import { parseDbc, decodeCanFrame, DEFAULT_DBC_CONTENT } from '../utils/dbc-parser';
 
@@ -7,6 +7,7 @@ let frameIdCounter = 0;
 let bookmarkIdCounter = 0;
 
 const BOOKMARK_COLORS = ['#ef4444', '#f59e0b', '#22c55e', '#06b6d4', '#8b5cf6', '#ec4899'];
+const BOOKMARK_STORAGE_KEY = 'canbus_bookmarks_v1';
 
 export const useCanBusStore = defineStore('canbus', () => {
   const frames = ref<CanFrame[]>([]);
@@ -92,7 +93,6 @@ export const useCanBusStore = defineStore('canbus', () => {
   function clearFrames() {
     frames.value = [];
     signals.value = new Map();
-    bookmarks.value = [];
     focusedTimestamp.value = null;
     busStats.value = {
       totalFrames: 0,
@@ -103,7 +103,40 @@ export const useCanBusStore = defineStore('canbus', () => {
       lastUpdate: Date.now()
     };
     frameIdCounter = 0;
-    bookmarkIdCounter = 0;
+  }
+
+  function loadBookmarksFromStorage() {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const raw = localStorage.getItem(BOOKMARK_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      const restored: FrameBookmark[] = parsed
+        .filter((b: any): b is FrameBookmark =>
+          b && typeof b.id === 'string' && typeof b.frameId === 'string' &&
+          typeof b.timestamp === 'number' && typeof b.note === 'string' &&
+          typeof b.createdAt === 'number' && typeof b.color === 'string'
+        )
+        .map(b => ({ ...b }));
+      restored.sort((a, b) => a.timestamp - b.timestamp);
+      bookmarks.value = restored;
+      bookmarkIdCounter = restored.reduce((max, b) => {
+        const m = b.id.match(/bookmark-(\d+)/);
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+      }, 0);
+    } catch (e) {
+      console.warn('[canbus] Failed to load bookmarks from storage:', e);
+    }
+  }
+
+  function saveBookmarksToStorage() {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.setItem(BOOKMARK_STORAGE_KEY, JSON.stringify(bookmarks.value));
+    } catch (e) {
+      console.warn('[canbus] Failed to save bookmarks to storage:', e);
+    }
   }
 
   function addBookmark(frameId: string, note: string = ''): FrameBookmark | null {
@@ -258,6 +291,9 @@ export const useCanBusStore = defineStore('canbus', () => {
     }).join('\n');
     return header + rows;
   }
+
+  loadBookmarksFromStorage();
+  watch(bookmarks, saveBookmarksToStorage, { deep: true });
 
   return {
     frames,
